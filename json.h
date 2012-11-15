@@ -4,6 +4,8 @@
 #include <memory>
 #include <sstream>
 #include <iostream>
+#include <functional>
+#include <exception>
 
 namespace json {  
   struct JsonBase {
@@ -28,6 +30,73 @@ namespace json {
   };
 
   typedef JsonBase::json_ref json_ref;
+
+
+  struct parse_exception : public std::exception {
+    const int index, line, collumn;
+    std::string surounding_string;
+    std::string operation;
+    std::string failior;
+    
+    std::string msg;
+    
+    parse_exception(int index, 
+                    int line, 
+                    int collumn,
+                    std::string surounding_string,
+                    std::string operation,
+                    std::string failior)
+      : index(index), 
+        line(line), 
+        collumn(collumn),
+        surounding_string(surounding_string),
+        operation(operation),
+        failior(failior) {
+      
+      std::stringstream s;
+      s << "parse error while [" << operation 
+        << "] att line:"<< line 
+        << " coll:" << collumn
+        << std::endl
+        << "error: " << failior
+        << std::endl
+        << "...{ " << surounding_string << " }...";
+      
+      msg += s.str();
+    }
+
+    
+    virtual const char* what() const throw() {
+      return msg.c_str();
+    }
+  };
+
+  void throw_parse_error(std::string& content, 
+                         int index, 
+                         std::string operation,
+                         std::string error) {
+    int row = 0, collumn = 0;
+    
+    for (int i = 0; i <= index; i++) {
+      if (content[i] == '\n') {
+        row++; collumn = 0;
+      } else {
+        collumn++;
+      }
+    }
+    
+    int begin = index > 10 ? index - 10 : 0;
+    std::string souroundings = 
+      content.substr(begin,
+                     content.length() > (index + 11) ? 
+                     10 
+                     : content.length() - begin);
+    
+    throw parse_exception(index, row, collumn, 
+                          souroundings, 
+                          operation, 
+                          error);
+  }
 
   struct JsonString : public JsonBase {
     virtual bool is_string() { return true; }    
@@ -82,7 +151,6 @@ namespace json {
   };
 
   int skip_white_space(std::string& content, int i) {
-    // std::cout << " : " << i << " " << (i > content.length()) << std::endl;
     while (true) {
       if (content[i] == ' ' || content[i] == '\t' || content[i] == '\n') {
         i++;
@@ -90,7 +158,9 @@ namespace json {
       }
       return i;
     }
-    // TODO: throw parse error here
+    
+    throw_parse_error(content, i, "skipping whitespace", 
+                      "error expected more content");
   }
   
   std::string numbers("0123456789");
@@ -126,7 +196,9 @@ namespace json {
       
       s << content[i];
     }
-    // TODO: add parse error
+    
+    throw_parse_error(content, i, "parsing string", 
+                      "culd not find end of string");
   }
 
   parse_res parse(std::string&, int);
@@ -143,21 +215,31 @@ namespace json {
         
       }
       if (!first) {
-        if (content[i] != ',') { /* TODO throw error */ } 
+        if (content[i] != ',') { 
+          throw_parse_error(content, i,
+                            "parsing object",
+                            "object mappings need to be seperated by ,");
+        }
         i = skip_white_space(content, i + 1);
       }
       first = false;
 
-      if (content[i] != '"') { /* TODO throw error */ } 
+      if (content[i] != '"') { 
+        throw_parse_error(content, i, 
+                          "parsing object", 
+                          "keys have to be valid strings");
+      } 
       
       auto resp_k = parse_string(content, i);
       std::string key = resp_k.second->as_string();
 
       i = skip_white_space(content, resp_k.first);
       
-      if (content[i] != ':') { /* TODO throw error */ } 
+      if (content[i] != ':') { throw_parse_error(content, i, "parsing object", "missing colon"); } 
+
+      parse_res resp_v;
       
-      auto resp_v = parse(content, i + 1);
+      resp_v = parse(content, i + 1);
 
       i = resp_v.first;
       res[key] = resp_v.second;
@@ -175,13 +257,18 @@ namespace json {
       if (content[i] == ']') return std::make_pair(i + 1, std::make_shared<JsonArray>(res));      
 
       if (!first) {
-        if (content[i] != ',') { /* TODO throw error */ } 
+        if (content[i] != ',') { 
+          throw_parse_error(content, i, 
+                              "parsing array", 
+                              "missing colon (,)");
+        }
         i = skip_white_space(content, i + 1);
       }
       first = false;
       
       auto resp = parse(content, i);
       i = resp.first;
+
       res.push_back(resp.second);
     }
   }
@@ -199,7 +286,7 @@ namespace json {
   std::shared_ptr<JsonBool>  js_true  = std::make_shared<JsonBool>(true);
   std::shared_ptr<JsonBool>  js_false = std::make_shared<JsonBool>(false);
   std::shared_ptr<JsonNull>  js_null  = std::make_shared<JsonNull>();
-  
+    
   parse_res parse(std::string& content, int i = 0) {
     int index = skip_white_space(content, i);
         
@@ -213,7 +300,7 @@ namespace json {
     if (is_exact(content, index, "true"))  return std::make_pair(i + 5, js_true);
     if (is_exact(content, index, "false")) return std::make_pair(i + 6, js_false);
 
-    // TODO: throw parse error
+    throw_parse_error(content, i, "parsing dispatch", "no dispatch selected");
   }
 }
 

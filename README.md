@@ -14,21 +14,19 @@
         
         json_ref methods:
 
-                 reflection stuff:
-                     virtual bool is_array()  
-                     virtual bool is_record() 
-                     virtual bool is_number() 
-                     virtual bool is_string() 
-                     virtual bool is_bool()   
-                     virtual bool is_null()   
-                 
-                 extraction stuff:
-
-                     virtual std::vector<json_ref> as_vector() 
-                     virtual std::map<std::string, json_ref> as_map() 
-                     virtual std::string as_string() 
-                     virtual double as_number() 
-                     virtual bool as_bool() 
+         reflection stuff:
+          virtual bool is_array()  
+          virtual bool is_record() 
+          virtual bool is_number() 
+          virtual bool is_string() 
+          virtual bool is_bool()   
+          virtual bool is_null()                    
+         extraction stuff:
+          virtual std::vector<json_ref> as_vector() 
+          virtual std::map<std::string, json_ref> as_map() 
+          virtual std::string as_string() 
+          virtual double as_number() 
+          virtual bool as_bool() 
   */
 
   auto json_resp = json::parse(content).second;
